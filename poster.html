@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AR Poster Video</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+
+    <!-- A-Frame -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+
+    <!-- mind-ar-js for A-Frame -->
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      #loadingMessage {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #fff;
+        z-index: 9999;
+        text-align: center;
+        padding: 1rem;
+      }
+      #uiHint {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 0.6rem 1rem;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        z-index: 9999;
+        backdrop-filter: blur(8px);
+      }
+      #errorBox {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+        color: #fff;
+        z-index: 10000;
+        text-align: center;
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading screen -->
+    <div id="loadingMessage">
+      <div>
+        <div style="font-size:1.2rem; margin-bottom:0.5rem;">Loading AR poster…</div>
+        <div style="font-size:0.9rem; opacity:0.7;">Point your camera at the poster frame.</div>
+      </div>
+    </div>
+
+    <!-- Hint at bottom -->
+    <div id="uiHint" style="display:none;">
+      Move your phone slowly and keep the poster in view.
+    </div>
+
+    <!-- Error if no video -->
+    <div id="errorBox">
+      <div>
+        <div style="font-size:1.2rem; margin-bottom:0.5rem;">Video not found</div>
+        <div style="font-size:0.9rem; opacity:0.7;">
+          This QR must be like <code>?id=GOOGLE_DRIVE_FILE_ID</code>.
+        </div>
+      </div>
+    </div>
+
+    <!-- AR Scene -->
+    <a-scene
+      mindar-image="imageTargetSrc: ./poster.mind; filterMinCF:0.0001; filterBeta: 10"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: true"
+      renderer="precision: mediump"
+      embedded
+      id="scene"
+    >
+      <a-assets>
+        <!-- Video, src will be set using Google Drive ID -->
+        <video
+          id="posterVideo"
+          preload="auto"
+          loop="true"
+          webkit-playsinline
+          playsinline
+          muted
+          crossorigin="anonymous"
+        ></video>
+      </a-assets>
+
+      <!-- Camera -->
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <!-- Poster marker (from poster.mind, first target) -->
+      <a-entity mindar-image-target="targetIndex: 0" id="posterTarget">
+        <!-- Screen area inside your physical frame -->
+        <!-- Change width/height to match your frame ratio -->
+        <a-plane
+          id="videoPlane"
+          position="0 0 0"
+          rotation="0 0 0"
+          width="1"
+          height="0.7"
+          material="shader: flat; src: #posterVideo; transparent: true"
+        ></a-plane>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      const loadingMessage = document.getElementById("loadingMessage");
+      const uiHint = document.getElementById("uiHint");
+      const errorBox = document.getElementById("errorBox");
+
+      const sceneEl = document.querySelector("a-scene");
+      const videoEl = document.querySelector("#posterVideo");
+      const target = document.querySelector("#posterTarget");
+
+      // 1) Read Google Drive file ID from ?id=
+      const params = new URLSearchParams(window.location.search);
+      const driveId = params.get("id");
+
+      if (!driveId) {
+        // No ID: show error
+        loadingMessage.style.display = "none";
+        errorBox.style.display = "flex";
+      } else {
+        // Make Google Drive direct video link
+        // Important: file must be shared as "Anyone with the link"
+        const driveUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
+        videoEl.src = driveUrl;
+        videoEl.load();
+      }
+
+      // 2) When AR scene is ready
+      sceneEl.addEventListener("loaded", () => {
+        if (!driveId) return;
+        loadingMessage.style.display = "none";
+        uiHint.style.display = "block";
+      });
+
+      // 3) Start / stop video when frame (marker) is seen
+      target.addEventListener("targetFound", () => {
+        if (!driveId) return;
+        videoEl.play().catch(() => {
+          console.log("Tap once to start the video.");
+        });
+      });
+
+      target.addEventListener("targetLost", () => {
+        if (!driveId) return;
+        videoEl.pause();
+      });
+    </script>
+  </body>
+</html>
